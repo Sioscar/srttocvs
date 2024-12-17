@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRT文件导入Excel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>  <!-- 用于CSV生成 -->
+</head>
+<body>
+    <h2>导入 SRT 文件到 Excel</h2>
+    <input type="file" id="fileInput" accept=".srt">
+    <button id="downloadButton" style="display:none;">下载 CSV</button>
+    <button id="saveAsButton" style="display:none;">另存为</button>
+    
+    <br><br>
+    <table id="previewTable" border="1" style="width:100%; display:none;">
+        <thead>
+            <tr>
+                <th>序号</th>
+                <th>时间码</th>
+                <th>字幕内容</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let parsedData = [];
+
+        // 处理文件选择
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const fileContent = e.target.result;
+                    parsedData = parseSRTFile(fileContent);
+                    const csvData = convertToCSV(parsedData);
+                    displayTable(parsedData);  // 显示预览表格
+                    setupDownloadButton(csvData, file);  // 设置下载按钮
+                    setupSaveAsButton(csvData, file);  // 设置另存为按钮
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // 解析 .srt 文件
+        function parseSRTFile(content) {
+            const lines = content.split("\n");
+            const data = [];
+            let index = 1;
+            let currentTime = '';
+            let subtitleText = '';
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.match(/^(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})$/)) {
+                    // 时间码
+                    currentTime = line;
+                } else if (line === '') {
+                    // 空行代表字幕结束
+                    if (subtitleText) {
+                        data.push([index++, currentTime, subtitleText]);
+                        subtitleText = ''; // 清空当前字幕
+                    }
+                } else {
+                    // 字幕内容
+                    subtitleText += line + ' ';
+                }
+            });
+            return data;
+        }
+
+        // 将数据转换为 CSV 格式
+        function convertToCSV(data) {
+            const csv = Papa.unparse({
+                fields: ["序号", "时间码", "字幕内容"],
+                data: data
+            });
+            return csv;
+        }
+
+        // 显示预览表格
+        function displayTable(data) {
+            const tableBody = document.getElementById('previewTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';  // 清空之前的内容
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+
+            document.getElementById('previewTable').style.display = 'table';  // 显示表格
+        }
+
+        // 设置下载按钮
+        function setupDownloadButton(csvData, file) {
+            document.getElementById('downloadButton').style.display = 'inline';
+            document.getElementById('downloadButton').onclick = function() {
+                downloadCSV(csvData);
+            };
+        }
+
+        // 设置另存为按钮
+        function setupSaveAsButton(csvData, file) {
+            document.getElementById('saveAsButton').style.display = 'inline';
+            document.getElementById('saveAsButton').onclick = function() {
+                saveAsCSV(csvData, file);
+            };
+        }
+
+        // 下载 CSV 文件（带 UTF-8 BOM），避免中文乱码
+        function downloadCSV(csvData) {
+            const bom = "\uFEFF";  // UTF-8 BOM
+            const blob = new Blob([bom + csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'subtitles.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 另存为 CSV 文件（带 UTF-8 BOM）
+        function saveAsCSV(csvData, file) {
+            const bom = "\uFEFF";  // UTF-8 BOM
+            const fileName = file.name.replace(/\.srt$/, '.csv');  // 使用原文件名并替换为 .csv 后缀
+            const blob = new Blob([bom + csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
